@@ -243,11 +243,6 @@ fn op_require_resolve_lookup_paths(
 }
 
 #[op]
-fn op_require_path_is_absolute(p: String) -> bool {
-  PathBuf::from(p).is_absolute()
-}
-
-#[op]
 fn op_require_stat<P>(
   state: &mut OpState,
   path: String,
@@ -302,16 +297,6 @@ fn op_require_path_resolve(parts: Vec<String>) -> String {
 }
 
 #[op]
-fn op_require_path_dirname(request: String) -> Result<String, AnyError> {
-  let p = PathBuf::from(request);
-  if let Some(parent) = p.parent() {
-    Ok(parent.to_string_lossy().to_string())
-  } else {
-    Err(generic_error("Path doesn't have a parent"))
-  }
-}
-
-#[op]
 fn op_require_path_basename(request: String) -> Result<String, AnyError> {
   let p = PathBuf::from(request);
   if let Some(path) = p.file_name() {
@@ -319,36 +304,6 @@ fn op_require_path_basename(request: String) -> Result<String, AnyError> {
   } else {
     Err(generic_error("Path doesn't have a file name"))
   }
-}
-
-#[op]
-fn op_require_try_self_parent_path<P>(
-  state: &mut OpState,
-  has_parent: bool,
-  maybe_parent_filename: Option<String>,
-  maybe_parent_id: Option<String>,
-) -> Result<Option<String>, AnyError>
-where
-  P: NodePermissions + 'static,
-{
-  if !has_parent {
-    return Ok(None);
-  }
-
-  if let Some(parent_filename) = maybe_parent_filename {
-    return Ok(Some(parent_filename));
-  }
-
-  if let Some(parent_id) = maybe_parent_id {
-    if parent_id == "<repl>" || parent_id == "internal/preload" {
-      let fs = state.borrow::<FileSystemRc>();
-      if let Ok(cwd) = fs.cwd() {
-        ensure_read_permission::<P>(state, &cwd)?;
-        return Ok(Some(cwd.to_string_lossy().to_string()));
-      }
-    }
-  }
-  Ok(None)
 }
 
 #[op]

@@ -135,16 +135,16 @@ const builtinModules = [];
 // NOTE(bartlomieju): keep this list in sync with `ext/node/polyfill.rs`
 function setupBuiltinModules() {
   const nodeModules = {
-    "_http_agent": _httpAgent,
-    "_http_outgoing": _httpOutgoing,
-    "_stream_duplex": _streamDuplex,
-    "_stream_passthrough": _streamPassthrough,
-    "_stream_readable": _streamReadable,
-    "_stream_transform": _streamTransform,
-    "_stream_writable": _streamWritable,
+    _http_agent: _httpAgent,
+    _http_outgoing: _httpOutgoing,
+    _stream_duplex: _streamDuplex,
+    _stream_passthrough: _streamPassthrough,
+    _stream_readable: _streamReadable,
+    _stream_transform: _streamTransform,
+    _stream_writable: _streamWritable,
     assert,
     "assert/strict": assertStrict,
-    "async_hooks": asyncHooks,
+    async_hooks: asyncHooks,
     buffer,
     crypto,
     console,
@@ -244,10 +244,8 @@ const cjsParseCache = new SafeWeakMap();
 function pathDirname(filepath) {
   if (filepath == null) {
     throw new Error("Empty filepath.");
-  } else if (filepath === "") {
-    return ".";
   }
-  return ops.op_require_path_dirname(filepath);
+  return path.dirname(filepath);
 }
 
 function pathResolve(...args) {
@@ -275,6 +273,10 @@ function stat(filename) {
       return result;
     }
   }
+  console.log("stat", filename);
+  if (filename.endsWith("node_modules/node_modules")) {
+    console.trace("node_modules/node_modules");
+  }
   const result = ops.op_require_stat(filename);
   if (statCache !== null && result >= 0) {
     statCache.set(filename, result);
@@ -301,33 +303,18 @@ function tryFile(requestPath, _isMain) {
 }
 
 function tryPackage(requestPath, exts, isMain, originalPath) {
-  const packageJsonPath = pathResolve(
-    requestPath,
-    "package.json",
-  );
+  const packageJsonPath = pathResolve(requestPath, "package.json");
   const pkg = ops.op_require_read_package_scope(packageJsonPath)?.main;
   if (!pkg) {
-    return tryExtensions(
-      pathResolve(requestPath, "index"),
-      exts,
-      isMain,
-    );
+    return tryExtensions(pathResolve(requestPath, "index"), exts, isMain);
   }
 
   const filename = pathResolve(requestPath, pkg);
   let actual = tryFile(filename, isMain) ||
     tryExtensions(filename, exts, isMain) ||
-    tryExtensions(
-      pathResolve(filename, "index"),
-      exts,
-      isMain,
-    );
+    tryExtensions(pathResolve(filename, "index"), exts, isMain);
   if (actual === false) {
-    actual = tryExtensions(
-      pathResolve(requestPath, "index"),
-      exts,
-      isMain,
-    );
+    actual = tryExtensions(pathResolve(requestPath, "index"), exts, isMain);
     if (!actual) {
       // eslint-disable-next-line no-restricted-syntax
       const err = new Error(
@@ -335,10 +322,7 @@ function tryPackage(requestPath, exts, isMain, originalPath) {
           'Please verify that the package.json has a valid "main" entry',
       );
       err.code = "MODULE_NOT_FOUND";
-      err.path = pathResolve(
-        requestPath,
-        "package.json",
-      );
+      err.path = pathResolve(requestPath, "package.json");
       err.requestPath = originalPath;
       throw err;
     } else {
@@ -375,6 +359,24 @@ function tryExtensions(p, exts, isMain) {
   return false;
 }
 
+/**
+ * @param {Module} parent Parent Module
+ * @returns {string | false}
+ */
+function trySelfParentPath(parent) {
+  if (!parent) return false;
+
+  if (parent.filename) {
+    return parent.filename;
+  } else if (parent.id === "<repl>" || parent.id === "internal/preload") {
+    try {
+      return nodeGlobalThis.process.cwd() + path.sep;
+    } catch {
+      return false;
+    }
+  }
+}
+
 // Find the longest (possibly multi-dot) extension registered in
 // Module._extensions
 function findLongestRegisteredExtension(filename) {
@@ -404,10 +406,7 @@ function getExportsForCircularRequire(module) {
     !module.exports.__esModule
   ) {
     // This is later unset once the module is done loading.
-    ObjectSetPrototypeOf(
-      module.exports,
-      CircularRequirePrototypeWarningProxy,
-    );
+    ObjectSetPrototypeOf(module.exports, CircularRequirePrototypeWarningProxy);
   }
 
   return module.exports;
@@ -422,26 +421,27 @@ function emitCircularRequireWarning(prop) {
 
 // A Proxy that can be used as the prototype of a module.exports object and
 // warns when non-existent properties are accessed.
-const CircularRequirePrototypeWarningProxy = new Proxy({}, {
-  get(target, prop) {
-    // Allow __esModule access in any case because it is used in the output
-    // of transpiled code to determine whether something comes from an
-    // ES module, and is not used as a regular key of `module.exports`.
-    if (prop in target || prop === "__esModule") return target[prop];
-    emitCircularRequireWarning(prop);
-    return undefined;
-  },
+const CircularRequirePrototypeWarningProxy = new Proxy(
+  {},
+  {
+    get(target, prop) {
+      // Allow __esModule access in any case because it is used in the output
+      // of transpiled code to determine whether something comes from an
+      // ES module, and is not used as a regular key of `module.exports`.
+      if (prop in target || prop === "__esModule") return target[prop];
+      emitCircularRequireWarning(prop);
+      return undefined;
+    },
 
-  getOwnPropertyDescriptor(target, prop) {
-    if (
-      ObjectHasOwn(target, prop) || prop === "__esModule"
-    ) {
-      return ObjectGetOwnPropertyDescriptor(target, prop);
-    }
-    emitCircularRequireWarning(prop);
-    return undefined;
+    getOwnPropertyDescriptor(target, prop) {
+      if (ObjectHasOwn(target, prop) || prop === "__esModule") {
+        return ObjectGetOwnPropertyDescriptor(target, prop);
+      }
+      emitCircularRequireWarning(prop);
+      return undefined;
+    },
   },
-});
+);
 
 const moduleParentCache = new SafeWeakMap();
 function Module(id = "", parent) {
@@ -467,11 +467,7 @@ const CHAR_FORWARD_SLASH = 47;
 const TRAILING_SLASH_REGEX = /(?:^|\/)\.?\.$/;
 const encodedSepRegEx = /%2F|%2C/i;
 
-function finalizeEsmResolution(
-  resolved,
-  parentPath,
-  pkgPath,
-) {
+function finalizeEsmResolution(resolved, parentPath, pkgPath) {
   if (RegExpPrototypeTest(encodedSepRegEx, resolved)) {
     throw new ERR_INVALID_MODULE_SPECIFIER(
       resolved,
@@ -508,18 +504,24 @@ function resolveExports(
     return;
   }
 
-  return ops.op_require_resolve_exports(
-    usesLocalNodeModulesDir,
-    modulesPath,
-    request,
-    name,
-    expansion,
-    parentPath,
-  ) ?? false;
+  return (
+    ops.op_require_resolve_exports(
+      usesLocalNodeModulesDir,
+      modulesPath,
+      request,
+      name,
+      expansion,
+      parentPath,
+    ) ?? false
+  );
 }
 
 Module._findPath = function (request, paths, isMain, parentPath) {
-  const absoluteRequest = ops.op_require_path_is_absolute(request);
+  // if (parentPath.endsWith("replacement.js")) {
+  // console.log("_findPath", request, isMain, parentPath)
+  // }
+
+  const absoluteRequest = path.isAbsolute(request);
   if (absoluteRequest) {
     paths = [""];
   } else if (!paths || paths.length === 0) {
@@ -563,13 +565,9 @@ Module._findPath = function (request, paths, isMain, parentPath) {
     if (usesLocalNodeModulesDir) {
       basePath = pathResolve(curPath, request);
     } else {
-      const isDenoDirPackage = ops.op_require_is_deno_dir_package(
-        curPath,
-      );
-      const isRelative = ops.op_require_is_request_relative(
-        request,
-      );
-      basePath = (isDenoDirPackage && !isRelative)
+      const isDenoDirPackage = ops.op_require_is_deno_dir_package(curPath);
+      const isRelative = ops.op_require_is_request_relative(request);
+      basePath = isDenoDirPackage && !isRelative
         ? pathResolve(curPath, packageSpecifierSubPath(request))
         : pathResolve(curPath, request);
     }
@@ -577,7 +575,8 @@ Module._findPath = function (request, paths, isMain, parentPath) {
 
     const rc = stat(basePath);
     if (!trailingSlash) {
-      if (rc === 0) { // File.
+      if (rc === 0) {
+        // File.
         filename = toRealPath(basePath);
       }
 
@@ -590,7 +589,8 @@ Module._findPath = function (request, paths, isMain, parentPath) {
       }
     }
 
-    if (!filename && rc === 1) { // Directory.
+    if (!filename && rc === 1) {
+      // Directory.
       // try it with each of the extensions at "index"
       if (exts === undefined) {
         exts = ObjectKeys(Module._extensions);
@@ -622,19 +622,22 @@ Module._resolveLookupPaths = function (request, parent) {
   if (ops.op_require_is_request_relative(request)) {
     ArrayPrototypePush(
       paths,
-      parent?.filename ? ops.op_require_path_dirname(parent.filename) : ".",
+      parent?.filename ? path.dirname(parent.filename) : ".",
     );
     return paths;
   }
 
   if (
-    !usesLocalNodeModulesDir && parent?.filename && parent.filename.length > 0
+    !usesLocalNodeModulesDir &&
+    parent?.filename &&
+    parent.filename.length > 0
   ) {
     const denoDirPath = ops.op_require_resolve_deno_dir(
       request,
       parent.filename,
     );
     if (denoDirPath) {
+      console.log({ denoDirPath });
       ArrayPrototypePush(paths, denoDirPath);
     }
   }
@@ -643,6 +646,7 @@ Module._resolveLookupPaths = function (request, parent) {
     parent?.paths,
     parent?.filename ?? "",
   );
+  console.log({ lookupPathsResult, parentPaths: parent?.paths });
   if (lookupPathsResult) {
     ArrayPrototypePush(paths, ...new SafeArrayIterator(lookupPathsResult));
   }
@@ -695,9 +699,7 @@ Module._load = function (request, parent, isMain) {
   }
 
   const mod = loadNativeModule(filename, request);
-  if (
-    mod
-  ) {
+  if (mod) {
     return mod.exports;
   }
   // Don't call updateChildren(), Module constructor already does.
@@ -743,12 +745,7 @@ Module._load = function (request, parent, isMain) {
   return module.exports;
 };
 
-Module._resolveFilename = function (
-  request,
-  parent,
-  isMain,
-  options,
-) {
+Module._resolveFilename = function (request, parent, isMain, options) {
   if (
     StringPrototypeStartsWith(request, "node:") ||
     nativeModuleCanBeRequiredByUsers(request)
@@ -760,9 +757,7 @@ Module._resolveFilename = function (
 
   if (typeof options === "object" && options !== null) {
     if (ArrayIsArray(options.paths)) {
-      const isRelative = ops.op_require_is_request_relative(
-        request,
-      );
+      const isRelative = ops.op_require_is_request_relative(request);
 
       if (isRelative) {
         paths = options.paths;
@@ -791,6 +786,7 @@ Module._resolveFilename = function (
     }
   } else {
     paths = Module._resolveLookupPaths(request, parent);
+    console.log({ paths });
   }
 
   if (parent?.filename) {
@@ -806,26 +802,20 @@ Module._resolveFilename = function (
   }
 
   // Try module self resolution first
-  const parentPath = ops.op_require_try_self_parent_path(
-    !!parent,
-    parent?.filename,
-    parent?.id,
-  );
+  // Optimization: Assume that the parent path has already been resolved
+  // and has been validated to avoid duplicated lookups.
+  const parentPath = trySelfParentPath(parent);
   const selfResolved = ops.op_require_try_self(parentPath, request);
   if (selfResolved) {
-    const cacheKey = request + "\x00" +
+    const cacheKey = request +
+      "\x00" +
       (paths.length === 1 ? paths[0] : ArrayPrototypeJoin(paths, "\x00"));
     Module._pathCache[cacheKey] = selfResolved;
     return selfResolved;
   }
 
   // Look up the filename first, since that's the cache key.
-  const filename = Module._findPath(
-    request,
-    paths,
-    isMain,
-    parentPath,
-  );
+  const filename = Module._findPath(request, paths, isMain, parentPath);
   if (filename) return filename;
   const requireStack = [];
   for (let cursor = parent; cursor; cursor = moduleParentCache.get(cursor)) {
@@ -833,7 +823,8 @@ Module._resolveFilename = function (
   }
   let message = `Cannot find module '${request}'`;
   if (requireStack.length > 0) {
-    message = message + "\nRequire stack:\n- " +
+    message = message +
+      "\nRequire stack:\n- " +
       ArrayPrototypeJoin(requireStack, "\n- ");
   }
   // eslint-disable-next-line no-restricted-syntax
@@ -870,13 +861,12 @@ Module.prototype.load = function (filename) {
   // Canonicalize the path so it's not pointing to the symlinked directory
   // in `node_modules` directory of the referrer.
   this.filename = ops.op_require_real_path(filename);
-  this.paths = Module._nodeModulePaths(
-    pathDirname(this.filename),
-  );
+  this.paths = Module._nodeModulePaths(pathDirname(this.filename));
   const extension = findLongestRegisteredExtension(filename);
   // allow .mjs to be overriden
   if (
-    StringPrototypeEndsWith(filename, ".mjs") && !Module._extensions[".mjs"]
+    StringPrototypeEndsWith(filename, ".mjs") &&
+    !Module._extensions[".mjs"]
   ) {
     // TODO: use proper error class
     throw new Error("require ESM", filename);
@@ -938,11 +928,7 @@ function enrichCJSError(error) {
   }
 }
 
-function wrapSafe(
-  filename,
-  content,
-  cjsModuleInstance,
-) {
+function wrapSafe(filename, content, cjsModuleInstance) {
   const wrapper = Module.wrap(content);
   const [f, err] = core.evalContext(wrapper, `file://${filename}`);
   if (err) {
