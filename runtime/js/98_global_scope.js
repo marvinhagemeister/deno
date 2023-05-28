@@ -249,7 +249,6 @@ const mainRuntimeGlobalProperties = {
   Location: location.locationConstructorDescriptor,
   location: location.locationDescriptor,
   Window: globalInterfaces.windowConstructorDescriptor,
-  window: util.getterOnly(() => globalThis),
   self: util.getterOnly(() => globalThis),
   Navigator: util.nonEnumerable(Navigator),
   navigator: util.getterOnly(() => navigator),

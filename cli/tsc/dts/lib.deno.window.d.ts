@@ -68,8 +68,6 @@ declare class Window extends EventTarget {
 }
 
 /** @category Web APIs */
-declare var window: Window & typeof globalThis;
-/** @category Web APIs */
 declare var self: Window & typeof globalThis;
 /** @category DOM Events */
 declare var onerror: ((this: Window, ev: ErrorEvent) => any) | null;
