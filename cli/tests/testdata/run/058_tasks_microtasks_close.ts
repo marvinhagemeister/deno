@@ -1,4 +1,3 @@
-// deno-lint-ignore-file no-window-prefix
 console.log("sync 1");
 setTimeout(() => {
   console.log("setTimeout 1");
@@ -9,7 +8,7 @@ setTimeout(() => {
 Promise.resolve().then(() => {
   console.log("promise 1");
 });
-window.close();
+globalThis.close();
 console.log("sync 2");
 setTimeout(() => {
   console.log("setTimeout 2");

@@ -57,7 +57,6 @@ let knownGlobals = [
   self,
   sessionStorage,
   setImmediate,
-  window,
 ];
 
 if (global.AbortController)

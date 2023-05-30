@@ -789,11 +789,11 @@ async fn run_watch_load_unload_events() {
     &file_to_watch,
     r#"
       setInterval(() => {}, 0);
-      window.addEventListener("load", () => {
+      globalThis.addEventListener("load", () => {
         console.log("load");
       });
 
-      window.addEventListener("unload", () => {
+      globalThis.addEventListener("unload", () => {
         console.log("unload");
       });
     "#,
@@ -823,11 +823,11 @@ async fn run_watch_load_unload_events() {
   write(
     &file_to_watch,
     r#"
-      window.addEventListener("load", () => {
+      globalThis.addEventListener("load", () => {
         console.log("load");
       });
 
-      window.addEventListener("unload", () => {
+      globalThis.addEventListener("unload", () => {
         console.log("unload");
       });
     "#,
