@@ -179,7 +179,13 @@
         nextTickCallbacks[i]();
       }
     } else {
-      ops.op_run_microtasks();
+      try {
+
+        ops.op_run_microtasks();
+      }catch(err) {
+        console.log("micro",err)
+        throw err;
+      }
     }
     // Finally drain macrotask queue.
     for (let i = 0; i < macrotaskCallbacks.length; i++) {

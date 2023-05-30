@@ -532,6 +532,13 @@ pub fn load_cjs_module(
   )
   .into();
 
-  js_runtime.execute_script(located_script_name!(), source_code)?;
+  let res = js_runtime.execute_script(located_script_name!(), source_code);
+  match res {
+    Ok(_) => {}
+    Err(err) => {
+      println!("err {:?}", err);
+      return Err(err);
+    }
+  };
   Ok(())
 }

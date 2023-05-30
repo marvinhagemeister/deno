@@ -334,6 +334,7 @@ const supportedNodeStdioTypes: NodeStdio[] = ["pipe", "ignore", "inherit"];
 function toDenoStdio(
   pipe: NodeStdio | number | Stream | null | undefined,
 ): DenoStdio {
+  console.log({pipe})
   if (pipe instanceof Stream) {
     return "inherit";
   }
