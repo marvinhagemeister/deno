@@ -165,40 +165,82 @@ function abortedNetworkError() {
 /**
  * https://fetch.spec.whatwg.org#initialize-a-response
  * @param {Response} response
- * @param {ResponseInit} init
+ * @param {ResponseInit | undefined} init
  * @param {{ body: fetchBody.InnerBody, contentType: string | null } | null} bodyWithType
  */
 function initializeAResponse(response, init, bodyWithType) {
-  // 1.
-  if ((init.status < 200 || init.status > 599) && init.status != 101) {
-    throw new RangeError(
-      `The status provided (${init.status}) is not equal to 101 and outside the range [200, 599].`,
-    );
+  let status = 200;
+  let statusText = "";
+  let initHeaders = undefined;
+  let hasInit = init === undefined || init === null;
+  if (init === undefined || init === null) {
+    status = 200;
+    statusText = "";
+    initHeaders = undefined;
   }
 
-  // 2.
-  if (
-    init.statusText &&
-    RegExpPrototypeExec(REASON_PHRASE_RE, init.statusText) === null
-  ) {
-    throw new TypeError("Status text is not valid.");
+  // Fast path, if not a proxy
+  if (typeof init === "object" && !core.isProxy(init)) {
+    // Not a proxy fast path
+    if (init.status !== undefined) {
+      status = +init.status;
+    }
+
+    statusText = init.statusText !== undefined
+      ? webidl.converters["ByteString"](init.statusText)
+      : "";
+    initHeaders = init.headers !== undefined
+      ? webidl.converters["HeadersInit"](init.headers)
+      : undefined;
+
+    // 1.
+    if ((status < 200 || status > 599) && status != 101) {
+      throw new RangeError(
+        `The status provided (${status}) is not equal to 101 and outside the range [200, 599].`,
+      );
+    }
+
+    // 2.
+    if (
+      statusText &&
+      RegExpPrototypeExec(REASON_PHRASE_RE, statusText) === null
+    ) {
+      throw new TypeError("Status text is not valid.");
+    }
+  } else {
+    // 1.
+    if ((status < 200 || status > 599) && status != 101) {
+      throw new RangeError(
+        `The status provided (${status}) is not equal to 101 and outside the range [200, 599].`,
+      );
+    }
+
+    // 2.
+    if (
+      statusText &&
+      RegExpPrototypeExec(REASON_PHRASE_RE, statusText) === null
+    ) {
+      throw new TypeError("Status text is not valid.");
+    }
+    throw new Error("not implemented");
+    // return webidl.converters["ResponseInit"](init, prefix, context, opts);
   }
 
   // 3.
-  response[_response].status = init.status;
+  response[_response].status = status;
 
   // 4.
-  response[_response].statusMessage = init.statusText;
+  response[_response].statusMessage = statusText;
   // 5.
   /** @type {headers.Headers} */
   const headers = response[_headers];
-  if (init.headers) {
-    fillHeaders(headers, init.headers);
+  if (initHeaders) {
+    fillHeaders(headers, initHeaders);
   }
 
   // 6.
   if (bodyWithType !== null) {
-    if (nullBodyStatus(response[_response].status)) {
+    if (status !== 200 && nullBodyStatus(status)) {
       throw new TypeError(
         "Response with null body status cannot have body",
       );
@@ -285,7 +327,6 @@ class Response {
   static json(data = undefined, init = {}) {
     const prefix = "Failed to call 'Response.json'";
     data = webidl.converters.any(data);
-    init = webidl.converters["ResponseInit_fast"](init, prefix, "Argument 2");
 
     const str = serializeJSValueToJSONString(data);
     const res = extractBody(str);
@@ -302,12 +343,11 @@ class Response {
 
   /**
    * @param {BodyInit | null} body
-   * @param {ResponseInit} init
+   * @param {ResponseInit | undefined} init
    */
   constructor(body = null, init = undefined) {
     const prefix = "Failed to construct 'Response'";
     body = webidl.converters["BodyInit_DOMString?"](body, prefix, "Argument 1");
-    init = webidl.converters["ResponseInit_fast"](init, prefix, "Argument 2");
 
     this[_response] = newInnerResponse();
     this[_headers] = headersFromHeaderList(
