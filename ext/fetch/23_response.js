@@ -172,15 +172,14 @@ function initializeAResponse(response, init, bodyWithType) {
   let status = 200;
   let statusText = "";
   let initHeaders = undefined;
-  let hasInit = init === undefined || init === null;
   if (init === undefined || init === null) {
     status = 200;
     statusText = "";
     initHeaders = undefined;
-  }
-
-  // Fast path, if not a proxy
-  if (typeof init === "object" && !core.isProxy(init)) {
+  } else if (
+    // Fast path, if not a proxy
+    typeof init === "object" && !core.isProxy(init)
+  ) {
     // Not a proxy fast path
     if (init.status !== undefined) {
       status = +init.status;

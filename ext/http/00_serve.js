@@ -516,7 +516,14 @@ function mapToCallback(context, callback, onError) {
         innerRequest = new InnerRequest(req, context);
         const request = fromInnerRequest(innerRequest, signal, "immutable");
         if (hasOneCallback) {
-          response = await callback(request);
+          // response = await callback(request);
+
+          const res = callback(request);
+          if (res != null && typeof res === "object" && res.then) {
+            response = await res;
+          } else {
+            response = res;
+          }
         } else {
           response = await callback(request, {
             get remoteAddr() {
