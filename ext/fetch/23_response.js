@@ -188,9 +188,16 @@ function initializeAResponse(response, init, bodyWithType) {
     statusText = init.statusText !== undefined
       ? webidl.converters["ByteString"](init.statusText)
       : "";
-    initHeaders = init.headers !== undefined
-      ? webidl.converters["HeadersInit"](init.headers)
-      : undefined;
+
+    if (init.headers !== undefined) {
+      initHeaders = webidl.converters["HeadersInit"](init.headers);
+
+      /** @type {headers.Headers} */
+      const headers = response[_headers];
+      if (initHeaders) {
+        fillHeaders(headers, initHeaders);
+      }
+    }
 
     // 1.
     if ((status < 200 || status > 599) && status != 101) {
@@ -231,11 +238,11 @@ function initializeAResponse(response, init, bodyWithType) {
   // 4.
   response[_response].statusMessage = statusText;
   // 5.
-  /** @type {headers.Headers} */
-  const headers = response[_headers];
-  if (initHeaders) {
-    fillHeaders(headers, initHeaders);
-  }
+  // /** @type {headers.Headers} */
+  // const headers = response[_headers];
+  // if (initHeaders) {
+  //   fillHeaders(headers, initHeaders);
+  // }
 
   // 6.
   if (bodyWithType !== null) {
